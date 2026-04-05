@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geometry Dash Baby Blue</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87CEEB; }
+        canvas { display: block; touch-action: none; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let estado = "INICIO"; // INICIO, JOGANDO, MORREU
+        let nome = "";
+        let score = 0;
+        let speed = 7;
+        let pulosParaNivel = 0;
+        let player = { x: 80, y: 0, vy: 0, grav: 0.9, jump: -15, rot: 0, noChao: false };
+        let obstaculos = [];
+        let offset = 0;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.onresize = resize;
+        resize();
+
+        const chaoY = canvas.height * 0.75;
+
+        // CLIQUE ÚNICO PARA TUDO
+        window.addEventListener('pointerdown', () => {
+            if (estado === "INICIO") {
+                nome = prompt("Qual seu nome?") || "Player";
+                estado = "JOGANDO";
+                reset();
+            } else if (estado === "JOGANDO" && player.noChao) {
+                player.vy = player.jump;
+                player.noChao = false;
+            } else if (estado === "MORREU") {
+                estado = "JOGANDO";
+                reset();
+            }
+        });
+
+        function reset() {
+            score = 0;
+            pulosParaNivel = 0;
+            speed = 7;
+            obstaculos = [];
+            player.y = chaoY - 40;
+            player.vy = 0;
+        }
+
+        function loop() {
+            draw();
+            if (estado === "JOGANDO") update();
+            requestAnimationFrame(loop);
+        }
+
+        function update() {
+            offset -= speed;
+            player.vy += player.grav;
+            player.y += player.vy;
+
+            if (player.y + 40 >= chaoY) {
+                player.y = chaoY - 40;
+                player.vy = 0;
+                player.noChao = true;
+            }
+
+            if (!player.noChao) player.rot += speed * 1.5;
+            else player.rot = Math.round(player.rot / 90) * 90;
+
+            // Criar obstáculos
+            if (Math.random() < 0.02 && (obstaculos.length === 0 || obstaculos[obstaculos.length-1].x < canvas.width - 300)) {
+                obstaculos.push({ x: canvas.width, passed: false });
+            }
+
+            for (let i = obstaculos.length - 1; i >= 0; i--) {
+                obstaculos[i].x -= speed;
+
+                // Colisão
+                if (player.x < obstaculos[i].x + 30 && player.x + 40 > obstaculos[i].x && player.y + 40 > chaoY - 35) {
+                    estado = "MORREU";
+                }
+
+                if (!obstaculos[i].passed && obstaculos[i].x < player.x) {
+                    obstaculos[i].passed = true;
+                    score++;
+                    pulosParaNivel++;
+                    if (pulosParaNivel === 20) speed = 10; // Próximo nível automático
+                }
+                if (obstaculos[i].x < -100) obstaculos.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            // Fundo e Quadriculado
+            ctx.fillStyle = "#87CEEB";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = "rgba(255,255,255,0.3)";
+            for(let x=offset%60; x<canvas.width; x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,chaoY);ctx.stroke();}
+            for(let y=0; y<chaoY; y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+
+            // Chão
+            ctx.fillStyle = "#0077be";
+            ctx.fillRect(0, chaoY, canvas.width, canvas.height - chaoY);
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, chaoY, canvas.width, 4);
+
+            if (estado === "INICIO") {
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 30px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GEOMETRY DASH", canvas.width/2, canvas.height/2 - 20);
+                ctx.font = "20px Arial";
+                ctx.fillText("TOQUE NA TELA PARA JOGAR", canvas.width/2, canvas.height/2 + 30);
+            } 
+            else if (estado === "MORREU") {
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = "#ff3333";
+                ctx.font = "bold 40px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("game over⚠️!", canvas.width/2, canvas.height/2);
+                ctx.fillStyle = "white";
+                ctx.font = "20px Arial";
+                ctx.fillText("Toque para começar o jogo de novo", canvas.width/2, canvas.height/2 + 60);
+            }
+            else {
+                // Score
+                ctx.fillStyle = "white";
+                ctx.font = "bold 20px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(nome + " | SCORE: " + score, canvas.width/2, 50);
+
+                // Obstáculos
+                ctx.fillStyle = "#ff0044";
+                obstaculos.forEach(o => {
+                    ctx.beginPath(); ctx.moveTo(o.x, chaoY); ctx.lineTo(o.x+20, chaoY-40); ctx.lineTo(o.x+40, chaoY); ctx.fill();
+                    ctx.strokeStyle="white"; ctx.stroke();
+                });
+
+                // Player
+                ctx.save();
+                ctx.translate(player.x+20, player.y+20);
+                ctx.rotate(player.rot * Math.PI / 180);
+                ctx.fillStyle = "#00ff88";
+                ctx.fillRect(-20, -20, 40, 40);
+                ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.strokeRect(-20,-20,40,40);
+                ctx.fillStyle = "black";
+                ctx.fillRect(-10, -14, 8, 8); ctx.fillRect(3, -14, 8, 8); // Olhos
+                ctx.fillRect(-10, 6, 20, 4); // Boca
+                ctx.restore();
+            }
+        }
+
+        loop();
+    </script>
+</body>
+</html>
